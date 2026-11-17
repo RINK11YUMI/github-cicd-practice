@@ -1,0 +1,47 @@
+name: 实验3 · React+Node 工程 CI
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'web-app/**', '.github/workflows/web-app-ci.yml' ]
+  workflow_dispatch:
+
+jobs:
+  backend-test:
+    name: 后端 · 安装与测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-app/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web-app/backend/package-lock.json
+      - name: 安装依赖
+        run: npm ci || npm install
+      - name: 运行单元测试
+        run: npm test
+
+  frontend-build:
+    name: 前端 · 安装与构建
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-app/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web-app/frontend/package-lock.json
+      - name: 安装依赖
+        run: npm ci || npm install
+      - name: 构建生产包
+        run: npm run build
+      - name: 检查构建产物
+        run: |
+          test -f dist/index.html && echo "✅ 构建产物 dist/index.html 存在"
