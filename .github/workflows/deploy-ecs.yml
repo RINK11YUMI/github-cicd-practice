@@ -1,0 +1,48 @@
+name: 实验4 · 自动部署到阿里云 ECS
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'web-app/**', 'dist/**' ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 前端构建，产物准备上传
+      - name: 构建前端
+        working-directory: web-app/frontend
+        run: |
+          npm ci || npm install
+          npm run build
+
+      # 上传构建产物到 ECS 的 Nginx 目录
+      - name: 上传静态资源到 ECS
+        uses: easingthemes/ssh-deploy@v5
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.ECS_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.ECS_HOST }}
+          REMOTE_USER: ${{ secrets.ECS_USER }}
+          SOURCE: web-app/frontend/dist/
+          TARGET: /var/www/html/
+          ARGS: -avz --delete
+
+      # 远程重启后端服务（pm2 守护）
+      - name: 重启后端服务
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          script: |
+            cd /opt/web-app/backend
+            npm ci --registry=https://registry.npmmirror.com || npm ci
+            pm2 restart backend || pm2 start server.mjs --name backend
+            curl -s http://127.0.0.1:3000/api/health
